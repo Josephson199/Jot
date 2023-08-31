@@ -180,7 +180,7 @@ namespace Jot.Core.Commit
         public string Author { get; }
         public DateTime DateTime { get; }
         public string? Message { get; }
-        public ObjectId? ParentCommitId { get; }
+        public ObjectId ParentCommitId { get; }
         public ObjectId ObjectId { get; }
         private byte[] Bytes { get; set; }
 

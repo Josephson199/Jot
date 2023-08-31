@@ -259,6 +259,5 @@ namespace Jot.UseCases.Commit
         {
             return TreeObjectPersistor.Persist(treeObject);
         }
-
     }
 }
