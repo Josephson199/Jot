@@ -8,7 +8,7 @@ internal static class JotPaths
     
     internal static readonly string ProjectOptionsFilePath = Path.Combine(JotBasePath, ".config");
 
-    internal static readonly IDictionary<Type, string> ConfigPaths = new Dictionary<Type, string>
+    internal static readonly IDictionary<Type, string> OptionPaths = new Dictionary<Type, string>
     {
         { typeof(ProjectOptions), ProjectOptionsFilePath }
     };

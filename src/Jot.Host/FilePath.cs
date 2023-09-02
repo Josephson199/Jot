@@ -2,7 +2,7 @@
 
 namespace Jot
 {
-    public class FilePath
+    public record FilePath
     {
         public FilePath(string value)
         {

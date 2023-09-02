@@ -24,11 +24,11 @@ namespace Jot.Features.Checkout
     public class CheckoutHandler
     {
         private readonly IFileSystem _fileSystem;
-        private readonly HeadFileManager _headManager;
+        private readonly HeadFileHandler _headManager;
 
         public CheckoutHandler(IFileSystem fileSystem)
         {
-            _headManager = new HeadFileManager(fileSystem);
+            _headManager = new HeadFileHandler(fileSystem);
             _fileSystem = fileSystem;
         }
 

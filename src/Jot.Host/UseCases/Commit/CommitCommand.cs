@@ -2,15 +2,11 @@
 using Jot.Core.Commit;
 using Jot.Core.Tree;
 using Jot.Extensions;
-using Jot.Features.Commit;
 using Jot.Functions;
-using Microsoft.Extensions.Options;
-using System;
 using System.CommandLine;
 using System.CommandLine.IO;
 using System.IO.Abstractions;
 using static Jot.UseCases.Commit.CommitCommand;
-using static Jot.UseCases.Commit.CommitCommand.CommitHandler;
 
 namespace Jot.UseCases.Commit
 {
@@ -49,60 +45,48 @@ namespace Jot.UseCases.Commit
                 _console = console;
                 _projectOptions = fileSystem.File.GetOptions<ProjectOptions>();
 
-                FullTreePersistor = new TreeObjectPersistor(fileSystem);
-                FromSourceTreeCreator = new TreeObjectCreator(fileSystem);
-                TreeObjectRetreiever = new TreeObjectRetreiver(fileSystem);
-                HeadFileManager = new HeadFileManager(fileSystem);
-                CommitObjectRetreiver = new CommitObjectRetreiver(fileSystem);
+                TreeObjectPersistor = new TreeObjectPersistor(fileSystem);
+                TreeObjectPersistor.SourceFilePersisted += (sender, input) =>
+                {
+                    _console.WriteLine(input.GetRelativePath());
+                };
+
+                TreeObjectCreator = new TreeObjectCreator(fileSystem);
+                HeadFileHandler = new HeadFileHandler(fileSystem);
                 CommitObjectCreator = new CommitObjectCreator();
-                TreeFileManager = new TreeFileManager(fileSystem);
-                CommitFileManager = new CommitFileManager(fileSystem);
-                CommitUseCase = new CommitUseCase(fileSystem, _projectOptions);
-                CommitUseCase.TreePersisted += (sender, input) => Log(input);
+
+                CommitValidationChain = new NoChangesToCommit(fileSystem)
+                {
+                    Message = "No changes detected"
+                };
             }
 
-            private void Log(TreePersistResult treePersistResult)
-            {
-
-            }
-
-            private CommitUseCase CommitUseCase { get; }
-            private TreeObjectPersistor FullTreePersistor { get; }
-            private TreeObjectCreator FromSourceTreeCreator { get; }
-            private TreeObjectRetreiver TreeObjectRetreiever { get; }
-            private HeadFileManager HeadFileManager { get; }
-            private CommitObjectRetreiver CommitObjectRetreiver { get; }
+            private TreeObjectPersistor TreeObjectPersistor { get; }
+            private TreeObjectCreator TreeObjectCreator { get; }
+            private HeadFileHandler HeadFileHandler { get; }
             private CommitObjectCreator CommitObjectCreator { get; }
-            private TreeFileManager TreeFileManager { get; }
-            private CommitFileManager CommitFileManager { get; }
+            private ICommitValidation CommitValidationChain { get; }
 
             public Task<int> HandleAsync(CommitOptions options, CancellationToken cancellationToken)
             {
-                var treeObject = TreeFileManager.Create();
+                var treeObject = TreeObjectCreator.Create();
 
-                var currentHead = HeadFileManager.Get().ObjectId;
+                var currentHead = HeadFileHandler.Get().ObjectId;
 
-                if (currentHead is not NullObjectId)
+                var validationResult = CommitValidationChain.Validate(treeObject, currentHead);
+
+                if (validationResult.HasFailed)
                 {
-                    var currentCommit = CommitFileManager.Get(currentHead);
+                    _console.Error.WriteLine(validationResult.FailedValidation!.Message);
 
-                    var currentTreeObject = TreeFileManager.Get(currentCommit.TreeId);
-
-                    if (currentTreeObject.Equals(treeObject))
-                    {
-                        _console.Error.WriteLine(StaticOutputs.NoChanges);
-                        return Task.FromResult(ExitCodes.Failure);
-                    }
+                    return Task.FromResult(ExitCodes.Failure);
                 }
 
-                var persistResult = TreeFileManager.Persist(treeObject);
+                //TODO BEGIN TRANSACTION
 
-                foreach (var sourceFile in persistResult.SourceFiles)
-                {
-                    _console.WriteLine(sourceFile.GetRelativePath());
-                }
+                TreeObjectPersistor.Persist(treeObject);
 
-                var commitObject = CommitFileManager.Create(new CreateCommitParams
+                var commitObject = CommitObjectCreator.Create(new CreateCommitParams
                 {
                     TreeId = treeObject.GetObjectId(),
                     Author = _projectOptions.Author,
@@ -112,152 +96,85 @@ namespace Jot.UseCases.Commit
 
                 commitObject.Persist(_fileSystem);
 
-                HeadFileManager.Set(new SetHeadRequest(commitObject.ObjectId));
+                HeadFileHandler.Set(new SetHeadRequest(commitObject.ObjectId));
+
+                //TODO END TRANSACTION
 
                 _console.Write(commitObject.ObjectId.Value);
 
                 return Task.FromResult(ExitCodes.Success);
             }
-
-            public class StaticOutputs
-            {
-                public const string NoChanges = "No changes detected";
-            }
         }
     }
 
-    public class CommitUseCase
+    public interface ICommitValidation
     {
-        private readonly IFileSystem _fileSystem;
-        private readonly ProjectOptions _projectOptions;
+        CommitValidationResult Validate(TreeObject treeObject, ObjectId currentHead);
 
-        public CommitUseCase(IFileSystem fileSystem, ProjectOptions projectOptions)
-        {
-            _fileSystem = fileSystem;
-            _projectOptions = projectOptions;
-
-            HeadFileManager = new HeadFileManager(fileSystem);
-            TreeFileManager = new TreeFileManager(fileSystem);
-            CommitFileManager = new CommitFileManager(fileSystem);
-        }
-        private HeadFileManager HeadFileManager { get; }
-        private TreeFileManager TreeFileManager { get; }
-        private CommitFileManager CommitFileManager { get; }
-
-        public delegate void TreePersistedEventHandler(object sender, TreePersistResult treePersistResult);
-
-        public event TreePersistedEventHandler TreePersisted;
-
-        public async Task<CommitResult> Execute(CommitOptions commitOptions)
-        {
-            var treeObject = TreeFileManager.Create();
-
-            var currentHead = HeadFileManager.Get().ObjectId;
-
-            if (currentHead is not NullObjectId)
-            {
-                var currentCommit = CommitFileManager.Get(currentHead);
-
-                var currentTreeObject = TreeFileManager.Get(currentCommit.TreeId);
-
-                if (currentTreeObject.Equals(treeObject))
-                {
-                    //_console.Error.WriteLine(StaticOutputs.NoChanges);
-                    return CommitResult.Failed;
-                }
-            }
-
-            var persistResult = TreeFileManager.Persist(treeObject);
-
-            TreePersisted?.Invoke(this, persistResult);
-
-            //foreach (var sourceFile in persistResult.SourceFiles)
-            //{
-            //    _console.WriteLine(sourceFile.GetRelativePath());
-            //}
-
-            var commitObject = CommitFileManager.Create(new CreateCommitParams
-            {
-                TreeId = treeObject.GetObjectId(),
-                Author = _projectOptions.Author,
-                Message = commitOptions.Message,
-                ParentCommitId = currentHead
-            });
-
-            commitObject.Persist(_fileSystem);
-
-            HeadFileManager.Set(new SetHeadRequest(commitObject.ObjectId));
-
-            //_console.Write(commitObject.ObjectId.Value);
-
-            return CommitResult.Success;
-        }
-
-        public abstract record CommitResult 
-        {
-            public static CommitResult Failed => new CommitFailed();
-
-            public static CommitResult Success => new CommitSuccess();
-
-        }
-
-        public record CommitSuccess : CommitResult
-        {
-        }
-
-        public record CommitFailed : CommitResult
-        {
-        }
+        string Message { get; }
     }
 
-    public class CommitFileManager
+    public record CommitValidationResult
     {
-        public CommitFileManager(IFileSystem fileSystem)
+        private CommitValidationResult()
+        {
+        }
+
+        private CommitValidationResult(ICommitValidation commitValidation)
+        {
+            FailedValidation = commitValidation;
+        }
+
+        public ICommitValidation? FailedValidation { get; }
+
+        public bool HasFailed => FailedValidation != null;
+
+        public static CommitValidationResult Failed(ICommitValidation commitValidation)
+            => new(commitValidation);
+
+        public static CommitValidationResult Success()
+            => new();
+    }
+
+    public class NoChangesToCommit : ICommitValidation
+    {
+        public NoChangesToCommit(IFileSystem fileSystem, ICommitValidation? next = null)
         {
             CommitObjectRetreiver = new CommitObjectRetreiver(fileSystem);
-            CommitObjectCreator = new CommitObjectCreator();
+            TreeObjectRetreiver = new TreeObjectRetreiver(fileSystem);
+            Next = next;
         }
+
+        public string Message { get; set; } = string.Empty; 
+
+        private ICommitValidation? Next { get; }
 
         private CommitObjectRetreiver CommitObjectRetreiver { get; }
-        private CommitObjectCreator CommitObjectCreator { get; }
 
-        public CommitObject Get(ObjectId objectId)
-        {
-            return CommitObjectRetreiver.Get(objectId);
-        }
-
-        public CommitObject Create(CreateCommitParams @params)
-        {
-            return CommitObjectCreator.Create(@params);
-        }
-    }
-
-    public class TreeFileManager
-    {
-        public TreeFileManager(IFileSystem fileSystem)
-        {
-            TreeObjectPersistor = new TreeObjectPersistor(fileSystem);
-            TreeObjectCreator = new TreeObjectCreator(fileSystem);
-            TreeObjectRetreiver = new TreeObjectRetreiver(fileSystem);
-        }
-
-        private TreeObjectPersistor TreeObjectPersistor { get; }
-        private TreeObjectCreator TreeObjectCreator { get; }
         private TreeObjectRetreiver TreeObjectRetreiver { get; }
 
-        public TreeObject Create()
+        public CommitValidationResult Validate(TreeObject treeObject, ObjectId currentHead)
         {
-            return TreeObjectCreator.CreateInstance();
-        }
+            if (currentHead is NullObjectId)
+            {
+                return CommitValidationResult.Success();
+            }
 
-        public TreeObject Get(ObjectId objectId)
-        {
-            return TreeObjectRetreiver.Get(objectId);
-        }
+            var currentCommit = CommitObjectRetreiver.Get(currentHead);
 
-        public TreePersistResult Persist(TreeObject treeObject)
-        {
-            return TreeObjectPersistor.Persist(treeObject);
+            var currentTreeObject = TreeObjectRetreiver.Get(currentCommit.TreeId);
+
+            if (currentTreeObject.Equals(treeObject))
+            {
+                return CommitValidationResult.Failed(this);
+            }
+
+            if (Next is not null)
+            {
+                return Next.Validate(treeObject, currentHead);
+            }
+
+            return CommitValidationResult.Success();
         }
     }
 }

@@ -29,7 +29,7 @@ namespace Jot.Commands
 
             public Task<int> HandleAsync(InitOptions options, CancellationToken cancellationToken)
             {
-                var exists = _fileSystem.File.ConfigExists<ProjectOptions>();
+                var exists = _fileSystem.File.OptionsExists<ProjectOptions>();
 
                 if (exists)
                 {
@@ -64,7 +64,7 @@ namespace Jot.Commands
                     }
                 };
 
-                _fileSystem.File.WriteConfig(projectOptions);
+                _fileSystem.File.WriteOptions(projectOptions);
 
                 return Task.FromResult(0);
             }

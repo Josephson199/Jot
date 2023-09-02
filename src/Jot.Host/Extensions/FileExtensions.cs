@@ -13,7 +13,7 @@ namespace Jot.Extensions
 
         public static T GetOptions<T>(this IFile file) where T : IConfig
         {
-            var path = JotPaths.ConfigPaths[typeof(T)];
+            var path = JotPaths.OptionPaths[typeof(T)];
             
             var config = file.ReadAllText(path!);
 
@@ -23,9 +23,9 @@ namespace Jot.Extensions
             })!;
         }
 
-        public static bool ConfigExists<T>(this IFile file) where T : IConfig
+        public static bool OptionsExists<T>(this IFile file) where T : IConfig
         {
-            var path = JotPaths.ConfigPaths[typeof(T)];
+            var path = JotPaths.OptionPaths[typeof(T)];
 
             if (file.Exists(path))
             {
@@ -35,9 +35,9 @@ namespace Jot.Extensions
             return false;
         }
 
-        public static void WriteConfig<T>(this IFile file, T @object) where T : IConfig
+        public static void WriteOptions<T>(this IFile file, T @object) where T : IConfig
         {
-            var exists = JotPaths.ConfigPaths.TryGetValue(typeof(T), out var path);
+            var exists = JotPaths.OptionPaths.TryGetValue(typeof(T), out var path);
 
             if (!exists)
             {

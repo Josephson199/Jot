@@ -1,18 +1,11 @@
 ﻿using Jot.Commands;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using System;
-using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Builder;
 using System.CommandLine.Invocation;
 using System.CommandLine.IO;
 using System.IO.Abstractions;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace Jot.Extensions
 {
@@ -55,11 +48,11 @@ namespace Jot.Extensions
         {
             return builder.AddMiddleware(async (context, next) =>
             {
-                if (context.ParseResult.CommandResult.Command is not InitCommand)
+                if (!context.IsCommand<InitCommand>())
                 {
                     var fs = context.BindingContext.GetRequiredService<IFileSystem>();
 
-                    var exists = fs.File.ConfigExists<ProjectOptions>();
+                    var exists = fs.File.OptionsExists<ProjectOptions>();
 
                     if (!exists)
                     {
@@ -67,6 +60,8 @@ namespace Jot.Extensions
                         context.ExitCode = 1;
                         return;
                     }
+
+                    // TODO - Add ProjectOptions to DI here?
                 }
 
                 await next(context);

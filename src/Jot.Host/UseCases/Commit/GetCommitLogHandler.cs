@@ -9,12 +9,12 @@ namespace Jot.Features.Commit
 {
     public class GetCommitLogHandler
     {
-        private readonly HeadFileManager _headContext;
+        private readonly HeadFileHandler _headContext;
         private readonly IFileSystem _fileSystem;
 
         public GetCommitLogHandler(IFileSystem fileSystem)
         {
-            _headContext = new HeadFileManager(fileSystem);
+            _headContext = new HeadFileHandler(fileSystem);
             _fileSystem = fileSystem;
         }
 

@@ -17,7 +17,7 @@ namespace Jot.Core.Tree
 
         private SourceFilesManagers SourceFiles { get; }
 
-        public TreeObject CreateInstance()
+        public TreeObject Create()
         {
             return CreateInstanceForDirectory(_fileSystem.GetCurrentDirectoryInfo());
         }

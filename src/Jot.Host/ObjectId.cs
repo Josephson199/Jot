@@ -10,8 +10,6 @@ namespace Jot
         }
     }
 
-
-
     public class ObjectId : IEquatable<ObjectId>
     {
         public ObjectId(string value)
@@ -66,7 +64,5 @@ namespace Jot
 
         public static implicit operator ObjectId(string? value)
             => string.IsNullOrWhiteSpace(value) ? Null : new ObjectId(value);
-
-        //public static explicit operator ObjectId(string value) => new (value);
     }
 }

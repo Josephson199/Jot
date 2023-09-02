@@ -20,18 +20,6 @@ namespace Jot.Functions
         }
     }
 
-    public abstract class HeadResult
-    {
-        public HeadResult(ObjectId objectId)
-        {
-                
-        }
-
-        public abstract ObjectId CommitId { get; }
-    }
-
-    
-
     public class GetHeadResult
     {
         public GetHeadResult(ObjectId objectId)
@@ -42,11 +30,11 @@ namespace Jot.Functions
         public ObjectId ObjectId { get; }
     }
     
-    public class HeadFileManager
+    public class HeadFileHandler
     {
         private readonly IFileSystem _fileSystem;
 
-        public HeadFileManager(IFileSystem fileSystem)
+        public HeadFileHandler(IFileSystem fileSystem)
         {
             _fileSystem = fileSystem;
         }
